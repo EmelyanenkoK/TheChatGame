@@ -150,7 +150,7 @@
 
   if( op == 1 ) { ;; transfer piece
     (int donor_id, int acceptor_id, int piece_id, int amount) = (in_msg~load_uint(64), 
-                                                                 in_msg~load_uint(64), 
+                                                                 in_msg~load_uint(256), 
                                                                  in_msg~load_uint(32), 
                                                                  in_msg~load_uint(32));
     inventories~transfer_pieces(donor_id, acceptor_id, piece_id, amount);
