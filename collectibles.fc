@@ -1,0 +1,233 @@
+(cell, (slice, int)) ~udict::delete_get?(cell dict, int key_len, int index) asm(index dict key_len) "DICTUDELGET" "NULLSWAPIFNOT";
+(cell, ()) ~udict::set_ref(cell dict, int key_len, int index, cell value) asm(value index dict key_len) "DICTUSETREF";
+(slice, int) udict::get?(cell dict, int key_len, int index) asm(index dict key_len) "DICTUGET" "NULLSWAPIFNOT";
+
+
+(int, int, cell, cell) load_data () inline {
+  var cs = get_data().begin_parse();
+  (int init, 
+   int pubkey,
+   cell inventories,
+   cell pending_queries) = (cs~load_int(1),
+                            cs~load_uint(256),
+                            cs~load_dict(), 
+                            cs~load_dict());
+  return (init, pubkey, inventories, pending_queries); 
+}
+
+() save_data (int pubkey, cell inventories, cell pending_queries) impure inline {
+  cell storage = begin_cell().store_int(-1, 1)
+                             .store_uint(pubkey, 256)
+                             .store_dict(inventories)
+                             .store_dict(pending_queries)
+                 .end_cell();
+  set_data(storage);
+}
+
+() bounce_message (int operation, int query_id) inline {
+  var msg = begin_cell()
+		.store_uint (0x18, 6)
+		.store_uint (0, 2 + 4 + 1 + 4 + 4 + 64 + 32 + 1 + 1)
+		.store_uint (operation | 0x80000000, 32)
+		.store_uint (query_id, 64)
+            .end_cell();
+  send_raw_message(msg, 64);
+}
+() bounce_message_with_data (int operation, int query_id, slice data) inline {
+  var msg = begin_cell()
+		.store_uint (0x18, 6)
+		.store_uint (0, 2 + 4 + 1 + 4 + 4 + 64 + 32 + 1 + 1)
+		.store_uint (operation | 0x80000000, 32)
+		.store_uint (query_id, 64)
+                .store_slice (data) ;; TODO check empty bits
+            .end_cell();
+  send_raw_message(msg, 64);
+}
+
+
+(cell, ()) ~remember_query(cell pending_queries, int query_id) inline {
+  pending_queries~udict_set_builder(64, query_id, begin_cell());
+  return (pending_queries, ());
+}
+
+(cell, (int)) ~clean_expired_queries(cell pending_queries, int bound) inline {
+  bound -= (64 << 32);   ;; clean up records expired more than 64 seconds ago
+  int need_save = 0;
+  do {
+    var (pending_queries', i, _, f) = pending_queries.udict_delete_get_min(64);
+    f~touch();
+    if (f) {
+      f = (i < bound);
+    }
+    if (f) {
+      pending_queries = pending_queries';
+      need_save = -1;
+    }
+  } until (~ f);
+  return (pending_queries, (need_save));
+}
+
+(cell, ()) ~put_pieces(cell inventories, int user_id, int piece_id, int amount) inline {
+  (slice user_slice, int user_found?) = inventories~udict::delete_get?(256, user_id);
+  cell inventory = new_dict();
+  if(user_found?) {
+    inventory = user_slice~load_dict();
+  }
+  (slice pieces_data, int pieces_found?) = inventory~udict::delete_get?(32, piece_id);
+  if (pieces_found?) {
+    amount += pieces_data~load_uint(32);
+  }
+  if(amount) { ;; if amount=0 do not stor anything
+    inventory~udict::set_ref(32, piece_id, begin_cell().store_uint(amount, 32).end_cell());
+    ;; NOTE if amount > 2**32 exception will be raised automatically
+  }
+  ifnot(inventory.dict_empty?()) {
+    inventories~udict::set_ref(257, user_id, begin_cell().store_dict(inventory).end_cell());  
+  }
+  return (inventories, ());
+}
+
+(cell, ()) ~take_pieces(cell inventories, int user_id, int piece_id, int amount) inline {
+  (slice user_slice, int user_found?) = inventories~udict::delete_get?(256, user_id);
+  ;; if not user_found? exception during parsing will be raised automatically
+  cell inventory = user_slice~load_dict();
+  (slice pieces_data, int pieces_found?) = inventory~udict::delete_get?(32, piece_id);
+  int pieces_num = pieces_data~load_uint(32);
+  pieces_num -= amount;
+
+  if(pieces_num) { ;; if pieces_num=0 do not stor anything
+    inventory~udict::set_ref(32, piece_id, begin_cell().store_uint(pieces_num, 32).end_cell());
+    ;; NOTE if pieces_num < 0 exception will be raised automatically
+  }
+  ifnot(inventory.dict_empty?()) {
+    inventories~udict::set_ref(257, user_id, begin_cell().store_dict(inventory).end_cell());  
+  }
+  return (inventories, ());
+}
+
+(cell, ()) ~transfer_pieces(cell inventories, int donor_id, int acceptor_id, int piece_id, int amount) inline {
+  inventories~take_pieces(donor_id, piece_id, amount);
+  inventories~put_pieces(acceptor_id, piece_id, amount);
+  return (inventories, ());
+}
+
+
+
+() recv_external (slice in_msg) {
+  (int init, int pubkey, cell inventories, cell pending_queries) = load_data();
+  ifnot(init) {
+    accept_message();
+    save_data(pubkey, inventories, pending_queries);
+    return ();
+  }
+  slice signature = in_msg~load_bits(512);
+  throw_unless(34, check_signature(slice_hash(in_msg), signature, pubkey));
+
+  (int query_id, int op) = (in_msg~load_uint(64), in_msg~load_uint(8));
+  (_, int has_query) = pending_queries.udict::get?(64, query_id);
+  throw_if(47, has_query);
+
+  var bound = (now() << 32);
+  throw_if(48, query_id < bound);  
+  throw_if(49, query_id > (bound + 281474976710656)); ;; Do not process orders which should be stored too long
+  ;; 281474976710656 = 2**48 = 65536 * 2**32 ~ 18 hours
+  pending_queries~remember_query(query_id);
+
+  ;; Reason of accepting message and saving data that early is as follows:
+  ;; operations with dictionaries are potentially expensive, with sufficient
+  ;; number of users gas credit will be exhausted before full checks are done
+  ;; At the same time we cannot accept message, but not commit: if exception
+  ;; will be thrown after accept message but before commit we will lost whole 
+  ;; balance due to replays
+  save_data(pubkey, inventories, pending_queries);
+  accept_message();
+  commit();
+
+  if( op == 0 ) { ;; issue new piece
+    (int acceptor_id, int piece_id, int amount) = (in_msg~load_uint(64), in_msg~load_uint(32), in_msg~load_uint(32));
+    inventories~put_pieces(acceptor_id, piece_id, amount);
+  }
+
+  if( op == 1 ) { ;; transfer piece
+    (int donor_id, int acceptor_id, int piece_id, int amount) = (in_msg~load_uint(64), 
+                                                                 in_msg~load_uint(64), 
+                                                                 in_msg~load_uint(32), 
+                                                                 in_msg~load_uint(32));
+    inventories~transfer_pieces(donor_id, acceptor_id, piece_id, amount);
+  }
+
+  pending_queries~clean_expired_queries(bound);
+  save_data(pubkey, inventories, pending_queries);
+}
+
+() recv_internal (int msg_value, cell in_msg_cell, slice in_msg) {
+  var cs = in_msg_cell.begin_parse();
+  var flags = cs~load_uint(4);  ;; int_msg_info$0 ihr_disabled:Bool bounce:Bool bounced:Bool
+  if (flags & 1) {
+    ;; ignore all bounced messages
+    return ();
+  }
+  var s_addr = cs~load_msg_addr();
+  if (in_msg.slice_empty?()) {
+    ;; keep money as donation
+    return ();
+  }
+  int op = in_msg~load_uint(32);
+  if ( op == 0) {
+    return ();
+  }
+  int query_id = in_msg~load_uint(64);
+  (int init, int pubkey, cell inventories, cell pending_queries) = load_data();
+  if (op == 1) {
+    int sender_id = slice_hash(s_addr);
+    (int acceptor_id, int piece_id, int amount) = (in_msg~load_uint(64), in_msg~load_uint(32), in_msg~load_uint(32));
+    inventories~transfer_pieces(sender_id, acceptor_id, piece_id, amount);
+    save_data(pubkey, inventories, pending_queries);
+    bounce_message(op, query_id);
+    return ();
+  }
+  if (op == 2) { ;; get full inventory
+    int user_id = in_msg~load_uint(256);
+    (slice user_slice, int user_found?) = inventories.udict::get?(256, user_id);
+    ;; if not user_found? exception during parsing will be raised automatically
+    cell inventory = user_slice~load_dict();
+    bounce_message_with_data(op, query_id, inventory.begin_parse());
+    return ();
+  }
+  if (op == 2) { ;; get amount of piece_id owned by user_id
+    int user_id = in_msg~load_uint(256);
+    int piece_id = in_msg~load_uint(32);
+    (slice user_slice, int user_found?) = inventories.udict::get?(256, user_id);
+    ;; if not user_found? exception during parsing will be raised automatically
+    cell inventory = user_slice~load_dict();
+    (slice pieces_data, int pieces_found?) = inventory.udict::get?(32, piece_id);
+    bounce_message_with_data(op, query_id, pieces_data);
+    return ();
+  }
+
+  bounce_message( 0xffffffff, 0); ;; Unknown operation
+}
+
+(cell) get_inventory (int user_id) method_id {
+    (int init, int pubkey, cell inventories, cell pending_queries) = load_data();
+    (slice user_slice, int user_found?) = inventories.udict::get?(256, user_id);
+    ifnot(user_found?) {
+      return null();
+    }    
+    return user_slice~load_dict();
+}
+
+(int) get_amount_of_pieces (int user_id, int piece_id) method_id {
+    (int init, int pubkey, cell inventories, cell pending_queries) = load_data();
+    (slice user_slice, int user_found?) = inventories.udict::get?(256, user_id);
+    ifnot(user_found?) {
+      return 0;
+    }
+    cell inventory = user_slice~load_dict();
+    (slice pieces_data, int pieces_found?) = inventory.udict::get?(32, piece_id);
+    ifnot(pieces_found?) {
+      return 0;
+    }
+    return pieces_data~load_uint(32);
+}
+
