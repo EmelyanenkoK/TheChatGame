@@ -192,7 +192,7 @@
     bounce_message_with_data(op, query_id, inventory.begin_parse());
     return ();
   }
-  if (op == 2) { ;; get amount of piece_id owned by user_id
+  if (op == 3) { ;; get amount of piece_id owned by user_id
     int user_id = in_msg~load_uint(256);
     int piece_id = in_msg~load_uint(32);
     (slice user_slice, int user_found?) = inventories.udict::get?(256, user_id);
