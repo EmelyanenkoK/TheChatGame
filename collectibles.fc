@@ -3,20 +3,27 @@
 (slice, int) udict::get?(cell dict, int key_len, int index) asm(index dict key_len) "DICTUGET" "NULLSWAPIFNOT";
 
 
-(int, cell, cell) load_data () inline {
+
+(int, cell, cell, cell, cell) load_data () inline {
   var cs = get_data().begin_parse();
   (int pubkey,
    cell inventories,
-   cell pending_queries) = (cs~load_uint(256),
-                            cs~load_dict(), 
-                            cs~load_dict());
-  return (pubkey, inventories, pending_queries); 
+   cell specifications,
+   cell pending_queries,
+   cell manipulation_data) = (cs~load_uint(256),
+                              cs~load_dict(),
+                              cs~load_dict(), 
+                              cs~load_dict(),
+                              cs~load_ref());
+  return (pubkey, specifications, inventories, pending_queries, manipulation_data); 
 }
 
-() save_data (int pubkey, cell inventories, cell pending_queries) impure inline {
+() save_data (int pubkey, cell inventories,  cell specifications, cell pending_queries, cell manipulation_data) impure inline {
   cell storage = begin_cell().store_uint(pubkey, 256)
+                             .store_dict(specifications)
                              .store_dict(inventories)
                              .store_dict(pending_queries)
+                             .store_ref(manipulation_data)
                  .end_cell();
   set_data(storage);
 }
@@ -128,14 +135,27 @@
   return (inventories, ());
 }
 
+(cell, ()) ~set_specification_fast(cell specifications, int piece_id, slice ready_specification) inline {
+  specifications~udict::set(32, piece_id, ready_specification);
+  return (specifications, ());
+}
 
+(cell, ()) ~set_specification(cell specifications, int piece_id, int rarity, cell description, cell functional_properties) inline {
+  specifications~udict::set(32, piece_id, begin_cell()
+                                                      .store_uint(32, rarity)
+                                                      .store_ref(description)
+                                                      .store_ref(functional_properties)
+                                          .end_cell()
+                                          .begin_parse());
+  return (specifications, ());
+}
 
 () recv_external (slice in_msg) {
-  (int pubkey, cell inventories, cell pending_queries) = load_data();
+  (int pubkey, cell specifications, cell inventories, cell pending_queries, cell manipulation_data) = load_data();
   ifnot(pubkey) {
     pubkey = in_msg~load_uint(256);
     accept_message();
-    save_data(pubkey, inventories, pending_queries);
+    save_data(pubkey, specifications, inventories, pending_queries, manipulation_data);
     return ();
   }
   slice signature = in_msg~load_bits(512);
@@ -157,7 +177,7 @@
   ;; At the same time we cannot accept message, but not commit: if exception
   ;; will be thrown after accept message but before commit we will lost whole 
   ;; balance due to replays
-  save_data(pubkey, inventories, pending_queries);
+  save_data(pubkey, specifications, inventories, pending_queries, manipulation_data);
   accept_message();
   commit();
 
@@ -185,10 +205,27 @@
       inventories~burn_inventory(user_id);
     }
   }
+  
+  if ( op == 3 ) { ;; Upgrade contract
+    ifnot(in_msg.slice_refs_empty?()) {
+      cell code = in_msg~load_ref();
+      set_code(code);
+    }
+    ifnot(in_msg.slice_refs_empty?()) {
+      cell data = in_msg~load_ref();
+      set_data(data);
+    }
+    return ();
+  }
+
+  if ( op == 4 ) { ;; Set description
+    int piece_id = in_msg~load_uint(32);
+    specifications~set_specification_fast(piece_id, in_msg);
+  }
 
 
   pending_queries~clean_expired_queries(bound);
-  save_data(pubkey, inventories, pending_queries);
+  save_data(pubkey, specifications, inventories, pending_queries, manipulation_data);
 }
 
 () recv_internal (int msg_value, cell in_msg_cell, slice in_msg) {
@@ -208,12 +245,12 @@
     return ();
   }
   int query_id = in_msg~load_uint(64);
-  (int pubkey, cell inventories, cell pending_queries) = load_data();
+  (int pubkey, cell specifications, cell inventories, cell pending_queries, cell manipulation_data) = load_data();
   if (op == 1) {
     int sender_id = slice_hash(s_addr);
     (int acceptor_id, int piece_id, int amount) = (in_msg~load_uint(64), in_msg~load_uint(32), in_msg~load_uint(32));
     inventories~transfer_pieces(sender_id, acceptor_id, piece_id, amount);
-    save_data(pubkey, inventories, pending_queries);
+    save_data(pubkey, specifications, inventories, pending_queries, manipulation_data);
     bounce_message(op, query_id);
     return ();
   }
@@ -241,9 +278,8 @@
     ;; during checking wether query alredy presenting in pending_queries or not
     ;; In this case no external messages will be processed ever. Here we may
     ;; manually clean up expired queries, to prevent this situation.
-    (int pubkey, cell inventories, cell pending_queries) = load_data();
     pending_queries~clean_expired_queries((now() << 32));
-    save_data(pubkey, inventories, pending_queries);    
+    save_data(pubkey, specifications, inventories, pending_queries, manipulation_data);    
     return ();
   }
 
@@ -251,7 +287,7 @@
 }
 
 (cell) get_inventory (int user_id) method_id {
-    (int pubkey, cell inventories, cell pending_queries) = load_data();
+    (int pubkey, cell specifications, cell inventories, cell pending_queries, cell manipulation_data) = load_data();
     (slice user_slice, int user_found?) = inventories.udict::get?(256, user_id);
     ifnot(user_found?) {
       return null();
@@ -260,7 +296,7 @@
 }
 
 (int) get_amount_of_pieces (int user_id, int piece_id) method_id {
-    (int pubkey, cell inventories, cell pending_queries) = load_data();
+    (int pubkey, cell specifications, cell inventories, cell pending_queries, cell manipulation_data) = load_data();
     (slice user_slice, int user_found?) = inventories.udict::get?(256, user_id);
     ifnot(user_found?) {
       return 0;
