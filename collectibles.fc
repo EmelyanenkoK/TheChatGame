@@ -1,7 +1,7 @@
 (cell, (slice, int)) ~udict::delete_get?(cell dict, int key_len, int index) asm(index dict key_len) "DICTUDELGET" "NULLSWAPIFNOT";
 (cell, ()) ~udict::set(cell dict, int key_len, int index, slice value) asm(value index dict key_len) "DICTUSET";
 (slice, int) udict::get?(cell dict, int key_len, int index) asm(index dict key_len) "DICTUGET" "NULLSWAPIFNOT";
-
+(cell, int, slice, int) udict::delete_get_min(cell dict, int key_len) asm(-> 0 2 1 3) "DICTUREMMIN" "NULLSWAPIFNOT" "NULLSWAPIFNOT";
 
 
 (int, cell, cell, cell, cell) load_data () inline {
@@ -309,4 +309,25 @@
     return pieces_data~load_uint(32);
 }
 
+(cell, cell) get_inventory_with_specifications (int user_id) method_id {
+    (int pubkey, cell specifications, cell inventories, cell pending_queries, cell manipulation_data) = load_data();
+    (slice user_slice, int user_found?) = inventories.udict::get?(256, user_id);
+    ifnot(user_found?) {
+      return (null(), null());
+    }    
+    cell inventory = user_slice~load_dict();
+    cell inventory' = inventory;
+    cell specs_to_return = null();
+    do {
+      var (inventory', piece_id, _, f) = inventory'.udict::delete_get_min(32);
+      f~touch();
+      if (f) {
+        (slice specification, int sf) = specifications.udict::get?(32, piece_id);
+        if(sf) {
+          specs_to_return~udict::set(32, piece_id, specification);
+        }
+      }
+    } until (~ f);
+    return (inventory, specs_to_return);
+}
 
