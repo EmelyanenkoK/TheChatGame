@@ -1,5 +1,5 @@
 (cell, (slice, int)) ~udict::delete_get?(cell dict, int key_len, int index) asm(index dict key_len) "DICTUDELGET" "NULLSWAPIFNOT";
-(cell, ()) ~udict::set_ref(cell dict, int key_len, int index, cell value) asm(value index dict key_len) "DICTUSETREF";
+(cell, ()) ~udict::set(cell dict, int key_len, int index, slice value) asm(value index dict key_len) "DICTUSET";
 (slice, int) udict::get?(cell dict, int key_len, int index) asm(index dict key_len) "DICTUGET" "NULLSWAPIFNOT";
 
 
@@ -78,11 +78,11 @@
     amount += pieces_data~load_uint(32);
   }
   if(amount) { ;; if amount=0 do not stor anything
-    inventory~udict::set_ref(32, piece_id, begin_cell().store_uint(amount, 32).end_cell());
+    inventory~udict::set(32, piece_id, begin_cell().store_uint(amount, 32).end_cell().begin_parse());
     ;; NOTE if amount > 2**32 exception will be raised automatically
   }
   ifnot(inventory.dict_empty?()) {
-    inventories~udict::set_ref(257, user_id, begin_cell().store_dict(inventory).end_cell());  
+    inventories~udict::set(256, user_id, begin_cell().store_dict(inventory).end_cell().begin_parse());  
   }
   return (inventories, ());
 }
@@ -96,11 +96,11 @@
   pieces_num -= amount;
 
   if(pieces_num) { ;; if pieces_num=0 do not stor anything
-    inventory~udict::set_ref(32, piece_id, begin_cell().store_uint(pieces_num, 32).end_cell());
+    inventory~udict::set(32, piece_id, begin_cell().store_uint(pieces_num, 32).end_cell().begin_parse());
     ;; NOTE if pieces_num < 0 exception will be raised automatically
   }
   ifnot(inventory.dict_empty?()) {
-    inventories~udict::set_ref(257, user_id, begin_cell().store_dict(inventory).end_cell());  
+    inventories~udict::set(256, user_id, begin_cell().store_dict(inventory).end_cell().begin_parse());  
   }
   return (inventories, ());
 }
@@ -230,4 +230,5 @@
     }
     return pieces_data~load_uint(32);
 }
+
 
