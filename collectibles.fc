@@ -202,6 +202,17 @@
     bounce_message_with_data(op, query_id, pieces_data);
     return ();
   }
+  if (op == 4) { ;; clean up
+    ;; It is possible (while not probable) that pending_queries become large
+    ;; enough that gas_credit in external message processing will be exhausted
+    ;; during checking wether query alredy presenting in pending_queries or not
+    ;; In this case no external messages will be processed ever. Here we may
+    ;; manually clean up expired queries, to prevent this situation.
+    (int pubkey, cell inventories, cell pending_queries) = load_data();
+    pending_queries~clean_expired_queries(bound);
+    save_data(pubkey, inventories, pending_queries);    
+    return ();
+  }
 
   bounce_message( 0xffffffff, 0); ;; Unknown operation
 }
