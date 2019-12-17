@@ -102,6 +102,26 @@
   return (inventories, ());
 }
 
+(cell, ()) ~burn_pieces(cell inventories, int user_id, int piece_id, int amount) inline {
+  if(amount) {
+    inventories~take_pieces(user_id, piece_id, amount);
+  } else {
+    (slice user_slice, int user_found?) = inventories~udict::delete_get?(256, user_id);
+    cell inventory = user_slice~load_dict();
+    (slice pieces_data, int pieces_found?) = inventory~udict::delete_get?(32, piece_id);
+    ifnot(inventory.dict_empty?()) {
+      inventories~udict::set(256, user_id, begin_cell().store_dict(inventory).end_cell().begin_parse());  
+    }
+  }
+  return (inventories, ());  
+}
+
+(cell, ()) ~burn_inventory(cell inventories, int user_id) inline {
+  (slice user_slice, int user_found?) = inventories~udict::delete_get?(256, user_id);
+  return (inventories, ());  
+}
+
+
 (cell, ()) ~transfer_pieces(cell inventories, int donor_id, int acceptor_id, int piece_id, int amount) inline {
   inventories~take_pieces(donor_id, piece_id, amount);
   inventories~put_pieces(acceptor_id, piece_id, amount);
@@ -153,6 +173,19 @@
                                                                  in_msg~load_uint(32));
     inventories~transfer_pieces(donor_id, acceptor_id, piece_id, amount);
   }
+
+  if( op == 2 ) { ;; burn pieces or inventory
+    (int burn_type, int user_id) = (in_msg~load_uint(8), in_msg~load_uint(64));
+    if (burn_type == 0) { ;; one thing burn
+      (int piece_id, int amount) =  (in_msg~load_uint(32),in_msg~load_uint(32));
+      ;; amount == 0 means burn all
+      inventories~burn_pieces(user_id, piece_id, amount);
+    }
+    if (burn_type == 1) { ;; burn whole inventory 
+      inventories~burn_inventory(user_id);
+    }
+  }
+
 
   pending_queries~clean_expired_queries(bound);
   save_data(pubkey, inventories, pending_queries);
@@ -209,7 +242,7 @@
     ;; In this case no external messages will be processed ever. Here we may
     ;; manually clean up expired queries, to prevent this situation.
     (int pubkey, cell inventories, cell pending_queries) = load_data();
-    pending_queries~clean_expired_queries(bound);
+    pending_queries~clean_expired_queries((now() << 32));
     save_data(pubkey, inventories, pending_queries);    
     return ();
   }
