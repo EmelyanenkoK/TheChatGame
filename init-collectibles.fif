@@ -1,0 +1,29 @@
+#!/usr/bin/fift -s
+"TonUtil.fif" include
+"Asm.fif" include
+
+$1 parse-int =: public_key
+
+
+"_collectibles.fif" include <s =: contract_code
+// we use now here to make contract_storage and thus address unique
+// it will be overwritten upon processing of init message
+<b 0 256 u, dictnew dict, dictnew dict, now 32 u, b> =: contract_storage
+0 =: wc
+
+<b b{00110} s, <b contract_code s, b> ref, contract_storage ref, b>
+dup =: state_init
+dup hashu wc swap 2constant collectibles_addr
+."Collectibles address = " collectibles_addr .addr cr
+
+."Non-bounceable address (for init): " collectibles_addr 7 .Addr cr
+."Bounceable address (for later access): " collectibles_addr 6 .Addr cr
+
+
+<b public_key 256 u, b> <s =: init_message 
+
+<b b{1000100} s, collectibles_addr addr, b{000010} s, state_init <s s, b{0} s, init_message s, b>
+2 boc+>B
+"collectibles-init.boc" tuck B>file
+."(Saved collectibles contract creating query to file " type .")" cr
+
