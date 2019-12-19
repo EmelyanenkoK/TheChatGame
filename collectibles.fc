@@ -140,14 +140,25 @@
   return (specifications, ());
 }
 
-(cell, ()) ~set_specification(cell specifications, int piece_id, int rarity, cell description, cell functional_properties) inline {
+(cell, ()) ~set_specification(cell specifications, int piece_id, int rarity, slice title, cell description, cell functional_properties) inline {
   specifications~udict::set(32, piece_id, begin_cell()
                                                       .store_uint(32, rarity)
+                                                      .store_uint(8, title.slice_bits() / 8)
+                                                      .store_slice(title)
                                                       .store_ref(description)
                                                       .store_ref(functional_properties)
                                           .end_cell()
                                           .begin_parse());
   return (specifications, ());
+}
+
+(slice, ()) ~^(slice s) inline {
+  if(s.slice_data_empty?()) {
+    ifnot(s.slice_refs_empty?()) {
+      s = s~load_ref().begin_parse(); 
+    }
+  }
+  return (s,());
 }
 
 () recv_external (slice in_msg) {
@@ -158,9 +169,11 @@
     save_data(pubkey, specifications, inventories, pending_queries, manipulation_data);
     return ();
   }
+  in_msg~^();
   slice signature = in_msg~load_bits(512);
   throw_unless(34, check_signature(slice_hash(in_msg), signature, pubkey));
 
+  in_msg~^();
   (int query_id, int op) = (in_msg~load_uint(64), in_msg~load_uint(8));
   (_, int has_query) = pending_queries.udict::get?(64, query_id);
   throw_if(47, has_query);
@@ -319,7 +332,7 @@
     cell inventory' = inventory;
     cell specs_to_return = null();
     do {
-      var (inventory', piece_id, _, f) = inventory'.udict::delete_get_min(32);
+      var (piece_id, _, f) = inventory'~udict::delete_get_min(32);
       f~touch();
       if (f) {
         (slice specification, int sf) = specifications.udict::get?(32, piece_id);
@@ -329,5 +342,11 @@
       }
     } until (~ f);
     return (inventory, specs_to_return);
+}
+
+(slice) get_specification(int piece_id) method_id {
+  (int pubkey, cell specifications, cell inventories, cell pending_queries, cell manipulation_data) = load_data();
+  (slice specification, int sf) = specifications.udict::get?(32, piece_id);
+  return specification;
 }
 
