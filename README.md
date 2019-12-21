@@ -23,6 +23,9 @@ Outer users may transfer items and touch inventories (to prevent their deleting 
 ### Spam-prevention
 Spam prevention is reached by two mechanisms. In-game spam prevention is implemented as non-zero cost of on-chain operations in terms of game resources. Out-of-game spam prevention is implemented as fee collection for operations which require storing of additional information.
 
+### Smart-contract address
+Smart-contract deployed on `kQChp8oK-nB-Avs1rCL8Q9IieH8oAwnntwIHmYvDzD07wqUf`.
+
 
 ## <a name="onchain"></a>On-chain advances
 
