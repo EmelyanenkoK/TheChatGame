@@ -281,7 +281,7 @@ int [0] (tuple) asm "CAR";
     inventories~delete_unused(delete_list, num_to_delete, now() - 3600 * 24 * 365);
   }
 
-  if ( op == 6 ) { ;; Set description
+  if ( op == 6 ) { ;; Send message
     int mode = in_msg~load_uint(8);
     cell msg = in_msg~load_ref();
     send_raw_message(msg, mode);
