@@ -8,7 +8,7 @@ $1 parse-int =: public_key
 "_collectibles.fif" include <s =: contract_code
 // we use now here to make contract_storage and thus address unique
 // it will be overwritten upon processing of init message
-<b 0 256 u, dictnew dict, dictnew dict, now 32 u, b> =: contract_storage
+<b 0 256 u, dictnew dict, dictnew dict, dictnew dict, <b b> ref, now 32 u, b> =: contract_storage
 0 =: wc
 
 <b b{00110} s, <b contract_code s, b> ref, contract_storage ref, b>
