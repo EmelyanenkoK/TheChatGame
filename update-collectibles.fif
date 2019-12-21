@@ -1,0 +1,24 @@
+#!/usr/bin/fift -s
+"TonUtil.fif" include
+"Asm.fif" include
+
+true =: bounce
+true =: allow-bounce
+$1 =: file-base
+$2 bounce parse-load-address allow-bounce and =: bounce 2=: collectibles_addr
+
+"_collectibles.fif" include <s =: contract_code
+
+
+<b 0 64 u, 3 8 u, <b contract_code s, b> ref, b> =: upgrade_message_body
+<b upgrade_message_body ref, b> =: upgrade_message
+
+
+file-base +".pk" load-keypair nip constant wallet_pk
+upgrade_message hashu wallet_pk ed25519_sign_uint =: signature
+
+<b b{1000100} s, collectibles_addr addr, 0 Gram, b{00} s, signature B, upgrade_message <s s, b>
+2 boc+>B
+"collectibles-upgrade.boc" tuck B>file
+."(Saved upgrade query to file " type .")" cr
+
