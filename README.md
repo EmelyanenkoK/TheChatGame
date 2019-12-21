@@ -14,6 +14,9 @@ At the same time game admins have no power to change inventories of outer users.
 
 At the same time, inner and outer users are equal with only differense that inner users has first 196 bits of their 'addresses' zeroed. Respectively admins only may change inventories of users with first first 196 bits of their 'addresses' equal to zero.
 
+### Replay protection
+Since it is expected that there may be period of high rate of item operations, and since game engine may be runned independently in many processes (on many servers) we chose to implement replay protection using 'remember recent queries mechanism'. That way using of blockchain is not only 'not obstructive', but otherwise allows to guarantee atomicity.
+
 ### Garbage collections
 To prevent clutter of the contract storage, the administration reserves the right to delete data of inactive users (no actions more than a year).
 
