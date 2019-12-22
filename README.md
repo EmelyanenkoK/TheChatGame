@@ -1,9 +1,11 @@
 # The Chat Game
 The Chat Game is chat game for Telegram messenger.
 
-The core idea of the game is collecting things and using them for fights, trades, ceremonies and in-game events. For most games with similar concepts players often discuss conditions and execute item exchange outside of the game. The most striking example is a huge market of EvE-online items (starships, resources etc). However, the main obstacle for effective market operation is conjuction of "out-of-game agreement" and "in-game exchange". Usually such exchanges require complex schemes involving guarantors. This is the problem which can be effectively solved by TON smart-contract.
+The game based on RPG + collectibles mechanincs. It allows users to collect different items and use them for fights, trade and other gameplay mechanincs. For most games with similar concepts players often discuss conditions and execute item exchange outside of the game, especially when the game doesn't build it's inventory related mechaninc around player/account binded items. The most striking example is a huge market of EvE-online items (starships, resources etc). However, the main obstacle for effective market operation is conjuction of "out-of-game agreement" and "in-game exchange". Usually such exchanges require complex schemes involving guarantors. This is the problem which can be effectively solved by TON smart-contract.
 
 We move all operations with items inside the game on-chain. This way users may transfer their items on their own TON addresses; exchange, trade, and subject items to be governed by complex smart-contracts. It is even possible to transfer items to the other games (if owners of those games provide gates). More details and discussion are placed in section [On-chain advances](#onchain).
+
+We also solve one of the most complicated issues for Telegram-based text games - their low adoption and low organic growth rate. We use @combot with more than 60000 active groups as a playground for items issuing. More than 30% of chats which uses Combot also uses it's XP system. We simply add game items as a random rewards for users activity in group chats. This mechanics allows us to organically integrate the part of the gameplay associated with getting the first items into a huge number of group chats.
 
 ## Smart contract details
 Smart contract allows item manipulation both for game admins and external users.
