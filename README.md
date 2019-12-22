@@ -1,7 +1,7 @@
 # The Chat Game
 The Chat Game is chat game for Telegram messenger.
 
-The game based on RPG + collectibles mechanincs. It allows users to collect different items and use them for fights, trade and other gameplay mechanincs. For most games with similar concepts players often discuss conditions and execute item exchange outside of the game, especially when the game doesn't build it's inventory related mechaninc around player/account binded items. The most striking example is a huge market of EvE-online items (starships, resources etc). However, the main obstacle for effective market operation is conjuction of "out-of-game agreement" and "in-game exchange". Usually such exchanges require complex schemes involving guarantors. This is the problem which can be effectively solved by TON smart-contract.
+The game (@thechatgamebot or t.me/thechatgamebot) based on RPG + collectibles mechanincs. It allows users to collect different items and use them for fights, trade and other gameplay mechanincs. For most games with similar concepts players often discuss conditions and execute item exchange outside of the game, especially when the game doesn't build it's inventory related mechaninc around player/account binded items. The most striking example is a huge market of EvE-online items (starships, resources etc). However, the main obstacle for effective market operation is conjuction of "out-of-game agreement" and "in-game exchange". Usually such exchanges require complex schemes involving guarantors. This is the problem which can be effectively solved by TON smart-contract.
 
 We move all operations with items inside the game on-chain. This way users may transfer their items on their own TON addresses; exchange, trade, and subject items to be governed by complex smart-contracts. It is even possible to transfer items to the other games (if owners of those games provide gates). More details and discussion are placed in section [On-chain advances](#onchain).
 
@@ -34,3 +34,6 @@ Smart-contract deployed on `kQChp8oK-nB-Avs1rCL8Q9IieH8oAwnntwIHmYvDzD07wqUf`.
 
 ## <a name="onchain"></a>On-chain advances
 
++ decentralized and transparent core gameplay base
++ decentralized and self-regulated ingame econimics
++ the ability to use GRAMs as ingame currency
