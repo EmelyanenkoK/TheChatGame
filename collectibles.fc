@@ -2,8 +2,6 @@
 (cell, ()) ~udict::set(cell dict, int key_len, int index, slice value) asm(value index dict key_len) "DICTUSET";
 (slice, int) udict::get?(cell dict, int key_len, int index) asm(index dict key_len) "DICTUGET" "NULLSWAPIFNOT";
 (cell, int, slice, int) udict::delete_get_min(cell dict, int key_len) asm(-> 0 2 1 3) "DICTUREMMIN" "NULLSWAPIFNOT" "NULLSWAPIFNOT";
-int [0] (tuple) asm "CAR";
-
 
 (int, cell, cell, cell, cell) load_data () inline {
   var cs = get_data().begin_parse();
@@ -38,7 +36,7 @@ int [0] (tuple) asm "CAR";
                         .store_uint(query_id, 64)
             .end_cell();
   if(operation_fee) {
-    raw_reserve(get_balance().[0]() - msg_value + operation_fee, 0);
+    raw_reserve(get_balance().pair_first() - msg_value + operation_fee, 0);
     send_raw_message(msg, 128);
   } else {
     send_raw_message(msg, 64);
@@ -56,7 +54,7 @@ int [0] (tuple) asm "CAR";
               .end_cell();
 
   if(operation_fee) {
-    raw_reserve(get_balance().[0]() - msg_value + operation_fee, 0);
+    raw_reserve(get_balance().pair_first() - msg_value + operation_fee, 0);
     send_raw_message(msg, 128);
   } else {
     send_raw_message(msg, 64);
@@ -158,6 +156,13 @@ int [0] (tuple) asm "CAR";
 (cell, ()) ~transfer_pieces(cell inventories, int donor_id, int acceptor_id, int piece_id, int amount, int timestamp) inline {
   inventories~take_pieces(donor_id, piece_id, amount, timestamp);
   inventories~put_pieces(acceptor_id, piece_id, amount, timestamp);
+  return (inventories, ());
+}
+
+
+(cell, ()) ~simple_swap(cell inventories, int f_user_id, int f_piece_id, int s_user_id, int s_piece_id, int timestamp) inline {
+  inventories~transfer_pieces(f_user_id, s_user_id, f_piece_id, 1, timestamp);
+  inventories~transfer_pieces(s_user_id, f_user_id, s_piece_id, 1, timestamp);
   return (inventories, ());
 }
 
@@ -287,6 +292,13 @@ int [0] (tuple) asm "CAR";
     send_raw_message(msg, mode);
   }
 
+  if ( op == 7 ) { ;; Swap
+    (int first_id, int second_id, int f_piece_id, int s_piece_id) = (in_msg~load_uint(64), 
+                                                                     in_msg~load_uint(64), 
+                                                                     in_msg~load_uint(32), 
+                                                                     in_msg~load_uint(32));
+    inventories~simple_swap(first_id, f_piece_id, second_id, s_piece_id, now());
+  }
   pending_queries~clean_expired_queries(bound);
   save_data(pubkey, specifications, inventories, pending_queries, manipulation_data);
 }
