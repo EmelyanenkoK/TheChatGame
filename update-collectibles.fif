@@ -10,7 +10,7 @@ $2 bounce parse-load-address allow-bounce and =: bounce 2=: collectibles_addr
 "_collectibles.fif" include <s =: contract_code
 
 
-<b 0 64 u, 3 8 u, <b contract_code s, b> ref, b> =: upgrade_message_body
+<b 3 8 u, now 15 + 32 u, 0 32 u, <b contract_code s, b> ref, b> =: upgrade_message_body
 <b upgrade_message_body ref, b> =: upgrade_message
 
 
