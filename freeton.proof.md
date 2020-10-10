@@ -1,0 +1,1 @@
+Owner of this repository confirms that this post https://forum.freeton.org/t/reward-distribution-contest-telegram-ton-contests-winners-15-06-31-12-2020/1455/25?u=seitaro is written by him and https://forum.freeton.org/u/Seitaro is his account
